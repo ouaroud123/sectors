@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Sectors & Neighborhoods Explorer</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom Style Tweaks -->
+    <style>
+        /* Custom scrollbar styling for place list */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Ensure map container takes proper full height */
+        #map-container {
+            min-height: 400px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 antialiased flex flex-col h-screen overflow-hidden">
+
+    <!-- Header Banner -->
+    <header class="bg-slate-900 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center shadow-md z-10 gap-3">
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 p-2 rounded-lg">
+                <i class="fa-solid me-1 fa-map-location-dot text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">City Sectors Navigator</h1>
+                <p class="text-xs text-slate-400">Interactive Location & Neighborhood Directory</p>
+            </div>
+        </div>
+        
+        <!-- Google Maps API Key Config -->
+        <div class="flex items-center bg-slate-800 rounded-lg p-1.5 border border-slate-700 w-full md:w-auto">
+            <i class="fa-solid fa-key text-slate-400 px-2 text-sm"></i>
+            <input type="password" id="apiKeyInput" placeholder="Paste Google Maps API Key..." 
+                class="bg-transparent text-sm text-white focus:outline-none w-full md:w-64 px-1" />
+            <button id="loadKeyBtn" onclick="applyApiKey()" 
+                class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition duration-150">
+                Load Map
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container (Sidebar + Map Pane) -->
+    <div class="flex flex-col md:flex-row flex-1 overflow-hidden relative">
+
+        <!-- Sidebar Panel -->
+        <aside class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col h-full z-10 shadow-lg">
+            
+            <!-- Controls / Cascading Dropdowns Section -->
+            <div class="p-5 border-b border-slate-200 space-y-4 bg-slate-50">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-indigo-500"></i> Location Selectors
+                </h2>
+
+                <!-- 1. Country Select -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">1. Country</label>
+                    <select id="countrySelect" onchange="onCountryChange()" 
+                        class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition">
+                        <option value="">-- Select Country --</option>
+                    </select>
+                </div>
+
+                <!-- 2. City Select -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">2. City</label>
+                    <select id="citySelect" onchange="onCityChange()" disabled 
+                        class="w-full bg-slate-100 border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition">
+                        <option value="">-- Select City First --</option>
+                    </select>
+                </div>
+
+                <!-- 3. Neighborhood/Sector Select -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">3. Neighborhood / Sector</label>
+                    <select id="sectorSelect" onchange="onSectorChange()" disabled 
+                        class="w-full bg-slate-100 border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition">
+                        <option value="">-- Select Sector First --</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Header & Counter Bar -->
+            <div class="px-5 py-3 bg-slate-200/60 border-b border-slate-200 flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-700 uppercase tracking-wide">Places List</span>
+                <span id="placesBadge" class="bg-indigo-100 text-indigo-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-indigo-200">
+                    0 Places
+                </span>
+            </div>
+
+            <!-- Scrollable Places Cards List -->
+            <div id="placesList" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                <!-- Initial Placeholder / Empty State -->
+                <div id="emptyState" class="text-center py-12 px-4">
+                    <i class="fa-solid fa-map-pin text-4xl text-slate-300 mb-3"></i>
+                    <p class="text-slate-600 text-sm font-medium">No sector selected</p>
+                    <p class="text-slate-400 text-xs mt-1">Please pick a Country, City, and Sector to reveal points of interest.</p>
+                </div>
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="p-3 bg-white border-t border-slate-200 text-center text-xs text-slate-400">
+                Data configured for GitHub Pages deployment.
+            </div>
+        </aside>
+
+        <!-- Map Workspace Area -->
+        <main id="map-container" class="flex-1 relative bg-slate-200">
+            <!-- Google Maps API Canvas -->
+            <div id="map" class="w-full h-full"></div>
+
+            <!-- Fallback Overlay when API Key is missing -->
+            <div id="mapFallback" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col justify-center items-center text-white p-6 text-center z-20">
+                <div class="bg-slate-800/90 border border-slate-700 p-8 rounded-2xl max-w-md shadow-2xl space-y-4">
+                    <div class="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto text-2xl border border-indigo-500/30">
+                        <i class="fa-solid fa-map-marked-alt"></i>
+                    </div>
+                    <h3 class="text-lg font-bold">Google Maps API Key Required</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Enter your API key in the top bar to enable live rendering, interactive markers, and auto-zooming.
+                    </p>
+                    <div class="text-left bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
+                        <p class="text-indigo-400 font-semibold">// GitHub Pages setup:</p>
+                        <p>1. Get a key from Google Cloud Console.</p>
+                        <p>2. Restrict HTTP referrer to your GitHub Pages URL.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        /**
+         * Dynamic Location & Sector Dataset
+         * You can easily append or customize entries here.
+         */
+        const locationData = [
+            // MOROCCO - TANGIER
+            {
+                id: 101,
+                country: "Morocco",
+                city: "Tangier",
+                sector: "Plaza Toro",
+                name: "Arènes de Tanger (Plaza Toro)",
+                category: "Historical Landmark",
+                address: "Plaza de Toros, Avenue Youssef Ben Tachfine",
+                lat: 35.7661,
+                lng: -5.7972
+            },
+            {
+                id: 102,
+                country: "Morocco",
+                city: "Tangier",
+                sector: "Plaza Toro",
+                name: "Cabinet de Traduction Assermentée",
+                category: "Services",
+                address: "Avenue Louis Van Beethoven",
+                lat: 35.7675,
+                lng: -5.7958
+            },
+            {
+                id: 103,
+                country: "Morocco",
+                city: "Tangier",
+                sector: "Malabata",
+                name: "Casino de Tanger",
+                category: "Entertainment",
+                address: "Baie de Tanger, Route de Malabata",
+                lat: 35.7794,
+                lng: -5.7770
+            },
+            {
+                id: 104,
+                country: "Morocco",
+                city: "Tangier",
+                sector: "Malabata",
+                name: "Tanger City Center Shopping Mall",
+                category: "Shopping",
+                address: "Place du Maghreb Arabe",
+                lat: 35.7725,
+                lng: -5.7901
+            },
+            {
+                id: 105,
+                country: "Morocco",
+                city: "Tangier",
+                sector: "Centre Ville",
+                name: "Grand Socco (Place 9 Avril)",
+                category: "Public Square",
+                address: "Rue d'Italie",
+                lat: 35.7836,
+                lng: -5.8131
+            },
+            {
+                id: 106,
+                country: "Morocco",
+                city: "Tangier",
+                sector: "Iberia",
+                name: "Consulat Général de France",
+                category: "Government",
+                address: "Place de France, Iberia",
+                lat: 35.7801,
+                lng: -5.8180
+            },
+
+            // MOROCCO - CASABLANCA
+            {
+                id: 201,
+                country: "Morocco",
+                city: "Casablanca",
+                sector: "Maarif",
+                name: "Twin Center Casablanca",
+                category: "Commercial Center",
+                address: "Boulevard Zerktouni",
+                lat: 33.5866,
+                lng: -7.6322
+            },
+            {
+                id: 202,
+                country: "Morocco",
+                city: "Casablanca",
+                sector: "Ain Diab",
+                name: "Hassan II Mosque",
+                category: "Landmark",
+                address: "Boulevard de la Corniche",
+                lat: 33.6086,
+                lng: -7.6328
+            },
+
+            // SPAIN - MADRID
+            {
+                id: 301,
+                country: "Spain",
+                city: "Madrid",
+                sector: "Salamanca",
+                name: "El Retiro Park",
+                category: "Park & Recreation",
+                address: "Plaza de la Independencia",
+                lat: 40.4153,
+                lng: -3.6845
+            },
+            {
+                id: 302,
+                country: "Spain",
+                city: "Madrid",
+                sector: "Centro",
+                name: "Plaza Mayor",
+                category: "Historical Plaza",
+                address: "Plaza Mayor, 28012",
+                lat: 40.4155,
+                lng: -3.7074
+            },
+
+            // SPAIN - BARCELONA
+            {
+                id: 401,
+                country: "Spain",
+                city: "Barcelona",
+                sector: "Eixample",
+                name: "Basílica de la Sagrada Família",
+                category: "Architecture",
+                address: "C/ de Mallorca, 401",
+                lat: 41.4036,
+                lng: 2.1744
+            }
+        ];
+
+        // Global State Variables
+        let map = null;
+        let activeMarkers = [];
+        let activeInfoWindow = null;
+        let isMapLoaded = false;
+
+        // Initialize Cascading Dropdowns on Page Load
+        window.addEventListener('DOMContentLoaded', () => {
+            populateCountries();
+        });
+
+        /**
+         * Step 1: Populate Countries Dropdown
+         */
+        function populateCountries() {
+            const countrySelect = document.getElementById('countrySelect');
+            const countries = [...new Set(locationData.map(item => item.country))].sort();
+
+            countries.forEach(country => {
+                const opt = document.createElement('option');
+                opt.value = country;
+                opt.textContent = country;
+                countrySelect.appendChild(opt);
+            });
+        }
+
+        /**
+         * Event Handler: Country Selection Changed
+         */
+        function onCountryChange() {
+            const selectedCountry = document.getElementById('countrySelect').value;
+            const citySelect = document.getElementById('citySelect');
+            const sectorSelect = document.getElementById('sectorSelect');
+
+            // Reset Cities and Sectors
+            citySelect.innerHTML = '<option value="">-- Select City --</option>';
+            sectorSelect.innerHTML = '<option value="">-- Select Sector First --</option>';
+            citySelect.disabled = !selectedCountry;
+            sectorSelect.disabled = true;
+
+            resetPlacesList();
+
+            if (!selectedCountry) return;
+
+            // Filter unique cities for selected country
+            const cities = [...new Set(
+                locationData
+                    .filter(item => item.country === selectedCountry)
+                    .map(item => item.city)
+            )].sort();
+
+            cities.forEach(city => {
+                const opt = document.createElement('option');
+                opt.value = city;
+                opt.textContent = city;
+                citySelect.appendChild(opt);
+            });
+        }
+
+        /**
+         * Event Handler: City Selection Changed
+         */
+        function onCityChange() {
+            const selectedCountry = document.getElementById('countrySelect').value;
+            const selectedCity = document.getElementById('citySelect').value;
+            const sectorSelect = document.getElementById('sectorSelect');
+
+            // Reset Sectors
+            sectorSelect.innerHTML = '<option value="">-- Select Sector --</option>';
+            sectorSelect.disabled = !selectedCity;
+
+            resetPlacesList();
+
+            if (!selectedCity) return;
+
+            // Filter unique sectors for selected city
+            const sectors = [...new Set(
+                locationData
+                    .filter(item => item.country === selectedCountry && item.city === selectedCity)
+                    .map(item => item.sector)
+            )].sort();
+
+            sectors.forEach(sector => {
+                const opt = document.createElement('option');
+                opt.value = sector;
+                opt.textContent = sector;
+                sectorSelect.appendChild(opt);
+            });
+        }
+
+        /**
+         * Event Handler: Sector Selection Changed
+         */
+        function onSectorChange() {
+            const selectedCountry = document.getElementById('countrySelect').value;
+            const selectedCity = document.getElementById('citySelect').value;
+            const selectedSector = document.getElementById('sectorSelect').value;
+
+            if (!selectedSector) {
+                resetPlacesList();
+                return;
+            }
+
+            // Filter places matching all three selections
+            const filteredPlaces = locationData.filter(item => 
+                item.country === selectedCountry && 
+                item.city === selectedCity && 
+                item.sector === selectedSector
+            );
+
+            renderPlacesList(filteredPlaces);
+            updateMapMarkers(filteredPlaces);
+        }
+
+        /**
+         * Render Card List in Left Panel
+         */
+        function renderPlacesList(places) {
+            const listContainer = document.getElementById('placesList');
+            const badge = document.getElementById('placesBadge');
+
+            listContainer.innerHTML = '';
+            badge.textContent = `${places.length} Places`;
+
+            if (places.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-12 px-4">
+                        <i class="fa-solid fa-folder-open text-4xl text-slate-300 mb-3"></i>
+                        <p class="text-slate-600 text-sm font-medium">No places found</p>
+                    </div>`;
+                return;
+            }
+
+            places.forEach(place => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition duration-200 cursor-pointer group";
+                card.onclick = () => focusPlaceOnMap(place.id);
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-bold text-slate-800 group-hover:text-indigo-600 transition text-sm">${place.name}</h3>
+                        <span class="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">${place.category}</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-3 flex items-center gap-1.5">
+                        <i class="fa-solid fa-location-dot text-indigo-500"></i> ${place.address}
+                    </p>
+                    <button class="w-full text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-1.5 rounded-lg border border-indigo-100 transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-crosshairs"></i> Locate on Map
+                    </button>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        /**
+         * Reset Places Panel View
+         */
+        function resetPlacesList() {
+            document.getElementById('placesBadge').textContent = '0 Places';
+            document.getElementById('placesList').innerHTML = `
+                <div id="emptyState" class="text-center py-12 px-4">
+                    <i class="fa-solid fa-map-pin text-4xl text-slate-300 mb-3"></i>
+                    <p class="text-slate-600 text-sm font-medium">No sector selected</p>
+                    <p class="text-slate-400 text-xs mt-1">Please pick a Country, City, and Sector to reveal points of interest.</p>
+                </div>`;
+            clearMapMarkers();
+        }
+
+        /**
+         * Dynamic Google Maps API Script Loader
+         */
+        function applyApiKey() {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            
+            if (!apiKey) {
+                alert("Please paste a valid Google Maps API Key.");
+                return;
+            }
+
+            // Remove existing script tag if re-entered
+            const existingScript = document.getElementById('googleMapsScript');
+            if (existingScript) existingScript.remove();
+
+            // Append Google Maps Script dynamically
+            const script = document.createElement('script');
+            script.id = 'googleMapsScript';
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
+            script.async = true;
+            script.defer = true;
+            
+            script.onerror = () => {
+                alert("Failed to load Google Maps with the supplied API key. Please verify restrictions.");
+            };
+
+            document.head.appendChild(script);
+        }
+
+        /**
+         * Google Maps Callback once script is successfully loaded
+         */
+        function initMap() {
+            isMapLoaded = true;
+            document.getElementById('mapFallback').classList.add('hidden');
+
+            // Default map center (Tangier, Morocco)
+            const defaultPos = { lat: 35.7767, lng: -5.8038 };
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 12,
+                center: defaultPos,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: true
+            });
+
+            activeInfoWindow = new google.maps.InfoWindow();
+
+            // Refresh current sector selection markers if any
+            onSectorChange();
+        }
+
+        /**
+         * Update and Render Markers on Google Map
+         */
+        function updateMapMarkers(places) {
+            if (!isMapLoaded || !map) return;
+
+            clearMapMarkers();
+
+            if (places.length === 0) return;
+
+            const bounds = new google.maps.LatLngBounds();
+
+            places.forEach(place => {
+                const position = { lat: place.lat, lng: place.lng };
+
+                const marker = new google.maps.Marker({
+                    position: position,
+                    map: map,
+                    title: place.name,
+                    animation: google.maps.Animation.DROP
+                });
+
+                // Attach custom object reference to marker
+                marker.placeId = place.id;
+
+                marker.addListener('click', () => {
+                    activeInfoWindow.setContent(`
+                        <div style="padding: 4px; max-width: 200px;">
+                            <strong style="font-size:14px; color:#1e293b;">${place.name}</strong>
+                            <p style="font-size:12px; color:#64748b; margin-top:4px;">${place.address}</p>
+                            <span style="font-size:10px; background:#e0e7ff; color:#3730a3; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:6px;">${place.category}</span>
+                        </div>
+                    `);
+                    activeInfoWindow.open(map, marker);
+                });
+
+                activeMarkers.push(marker);
+                bounds.extend(position);
+            });
+
+            // Adjust viewport to contain all filtered markers
+            if (places.length === 1) {
+                map.setCenter(bounds.getCenter());
+                map.setZoom(15);
+            } else {
+                map.fitBounds(bounds);
+            }
+        }
+
+        /**
+         * Clear active markers from Map
+         */
+        function clearMapMarkers() {
+            activeMarkers.forEach(marker => marker.setMap(null));
+            activeMarkers = [];
+        }
+
+        /**
+         * Focus on specific place marker when card is clicked
+         */
+        function focusPlaceOnMap(placeId) {
+            if (!isMapLoaded || !map) return;
+
+            const targetMarker = activeMarkers.find(m => m.placeId === placeId);
+            if (targetMarker) {
+                map.panTo(targetMarker.getPosition());
+                map.setZoom(16);
+                google.maps.event.trigger(targetMarker, 'click');
+            }
+        }
+    </script>
+</body>
+</html>
