@@ -3,202 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>City Sectors Explorer</title>
-    <!-- Tailwind CSS for styling -->
+    <title>City Sectors & Places Selector</title>
+    <!-- Tailwind CSS for clean styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map { height: 450px; width: 100%; }
-    </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen p-4 md:p-8">
+<body class="bg-gray-50 text-gray-800 min-h-screen p-4 md:p-8 flex items-center justify-center">
 
-    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
-        <h1 class="text-2xl font-bold mb-6 text-gray-900">City Sectors & Places Directory</h1>
+    <div class="max-w-2xl w-full bg-white rounded-xl shadow-md p-6 md:p-8">
+        <h1 class="text-2xl font-bold mb-2 text-gray-900">Location Explorer</h1>
+        <p class="text-sm text-gray-500 mb-6">Select a country, city, and neighborhood to filter and view available places.</p>
 
-        <!-- Cascading Dropdowns -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <!-- Dropdowns Grid -->
+        <div class="space-y-4 mb-6">
+            <!-- 1. Country -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <select id="countrySelect" class="w-full border border-gray-300 rounded-lg p-2.5 bg-white">
+                <label class="block text-sm font-medium text-gray-700 mb-1">1. Country</label>
+                <select id="countrySelect" class="w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                     <option value="">Select Country</option>
                 </select>
             </div>
+
+            <!-- 2. City -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <select id="citySelect" class="w-full border border-gray-300 rounded-lg p-2.5 bg-white" disabled>
+                <label class="block text-sm font-medium text-gray-700 mb-1">2. City</label>
+                <select id="citySelect" class="w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-indigo-500 outline-none" disabled>
                     <option value="">Select City</option>
                 </select>
             </div>
+
+            <!-- 3. Neighborhood / Sector -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Neighborhood / Sector</label>
-                <select id="neighborhoodSelect" class="w-full border border-gray-300 rounded-lg p-2.5 bg-white" disabled>
+                <label class="block text-sm font-medium text-gray-700 mb-1">3. Neighborhood / Sector</label>
+                <select id="neighborhoodSelect" class="w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-indigo-500 outline-none" disabled>
                     <option value="">Select Neighborhood</option>
+                </select>
+            </div>
+
+            <!-- 4. Place Name -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">4. Place Name</label>
+                <select id="placeSelect" class="w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-indigo-500 outline-none" disabled>
+                    <option value="">Select Place</option>
                 </select>
             </div>
         </div>
 
-        <!-- Map container -->
-        <div class="mb-6 rounded-lg overflow-hidden border border-gray-200">
-            <div id="map"></div>
-        </div>
-
-        <!-- Places Results List -->
-        <div>
-            <h2 class="text-lg font-semibold mb-3">Places in Selection</h2>
-            <div id="placesList" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <p class="text-gray-500 col-span-2">Please make a selection above to view places.</p>
-            </div>
+        <!-- Selected Place Details Box -->
+        <div id="placeDetails" class="hidden bg-indigo-50 border border-indigo-100 rounded-lg p-4 mt-6">
+            <h3 class="font-bold text-lg text-indigo-900" id="detName"></h3>
+            <p class="text-sm text-indigo-700 font-medium mb-2" id="detCategory"></p>
+            <p class="text-xs text-gray-600" id="detLocation"></p>
         </div>
     </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Sample dataset (You can add as many countries, cities, and sectors as you like)
+        // Sample dataset (Easily add or edit your places here)
         const placesData = [
             {
                 country: "Morocco",
                 city: "Tangier",
                 neighborhood: "Plaza Toro",
                 placeName: "Cabinet de Traduction Assermentée",
-                category: "Sworn Translation",
-                lat: 35.7767,
-                lng: -5.8038
+                category: "Sworn Translation (Spanish & Arabic)"
             },
             {
                 country: "Morocco",
                 city: "Tangier",
                 neighborhood: "Malabata",
                 placeName: "Grand Cafe de Paris",
-                category: "Cafe",
-                lat: 35.7833,
-                lng: -5.7950
+                category: "Cafe & Landmark"
             },
             {
                 country: "Morocco",
                 city: "Casablanca",
                 neighborhood: "Maarif",
                 placeName: "Twin Center",
-                category: "Shopping",
-                lat: 33.5883,
-                lng: -7.6311
+                category: "Shopping & Business"
             },
             {
                 country: "Spain",
                 city: "Madrid",
                 neighborhood: "Sol",
                 placeName: "Puerta del Sol",
-                category: "Landmark",
-                lat: 40.4168,
-                lng: -3.7038
+                category: "Public Square"
             }
         ];
 
-        // Initialize Leaflet Map centered on Morocco/Tangier by default
-        const map = L.map('map').setView([35.7767, -5.8038], 13);
-
-        // Add OpenStreetMap tile layer (Free)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
-        let currentMarkers = [];
-
-        // DOM elements
+        // DOM Elements
         const countrySelect = document.getElementById('countrySelect');
         const citySelect = document.getElementById('citySelect');
         const neighborhoodSelect = document.getElementById('neighborhoodSelect');
-        const placesListDiv = document.getElementById('placesList');
+        const placeSelect = document.getElementById('placeSelect');
+        const placeDetails = document.getElementById('placeDetails');
+        
+        const detName = document.getElementById('detName');
+        const detCategory = document.getElementById('detCategory');
+        const detLocation = document.getElementById('detLocation');
 
-        // Populate Countries on load
+        // Initialize Country Dropdown
         function initDropdowns() {
             const countries = [...new Set(placesData.map(item => item.country))];
             countrySelect.innerHTML = '<option value="">Select Country</option>' + 
                 countries.map(c => `<option value="${c}">${c}</option>`).join('');
         }
 
-        // Country change event
+        // 1. Country Change
         countrySelect.addEventListener('change', function() {
-            const selectedCountry = this.value;
+            const country = this.value;
+            
+            // Reset downstream dropdowns
             citySelect.innerHTML = '<option value="">Select City</option>';
             neighborhoodSelect.innerHTML = '<option value="">Select Neighborhood</option>';
-            citySelect.disabled = !selectedCountry;
-            neighborhoodSelect.disabled = true;
+            placeSelect.innerHTML = '<option value="">Select Place</option>';
             
-            if (selectedCountry) {
-                const cities = [...new Set(placesData.filter(item => item.country === selectedCountry).map(item => item.city))];
-                citySelect.innerHTML += cities.map(city => `<option value="${city}">${city}</option>`).join('');
+            citySelect.disabled = !country;
+            neighborhoodSelect.disabled = true;
+            placeSelect.disabled = true;
+            hideDetails();
+
+            if (country) {
+                const cities = [...new Set(placesData.filter(item => item.country === country).map(item => item.city))];
+                citySelect.innerHTML += cities.map(c => `<option value="${c}">${c}</option>`).join('');
             }
-            updateView();
         });
 
-        // City change event
+        // 2. City Change
         citySelect.addEventListener('change', function() {
-            const selectedCountry = countrySelect.value;
-            const selectedCity = this.value;
-            neighborhoodSelect.innerHTML = '<option value="">Select Neighborhood</option>';
-            neighborhoodSelect.disabled = !selectedCity;
+            const country = countrySelect.value;
+            const city = this.value;
 
-            if (selectedCity) {
-                const neighborhoods = [...new Set(placesData.filter(item => item.country === selectedCountry && item.city === selectedCity).map(item => item.neighborhood))];
+            neighborhoodSelect.innerHTML = '<option value="">Select Neighborhood</option>';
+            placeSelect.innerHTML = '<option value="">Select Place</option>';
+            
+            neighborhoodSelect.disabled = !city;
+            placeSelect.disabled = true;
+            hideDetails();
+
+            if (city) {
+                const neighborhoods = [...new Set(placesData.filter(item => item.country === country && item.city === city).map(item => item.neighborhood))];
                 neighborhoodSelect.innerHTML += neighborhoods.map(n => `<option value="${n}">${n}</option>`).join('');
             }
-            updateView();
         });
 
-        // Neighborhood change event
+        // 3. Neighborhood Change
         neighborhoodSelect.addEventListener('change', function() {
-            updateView();
-        });
-
-        // Filter data, update map markers and list items
-        function updateView() {
             const country = countrySelect.value;
             const city = citySelect.value;
-            const neighborhood = neighborhoodSelect.value;
+            const neighborhood = this.value;
 
-            // Clear existing markers
-            currentMarkers.forEach(marker => map.removeLayer(marker));
-            currentMarkers = [];
+            placeSelect.innerHTML = '<option value="">Select Place</option>';
+            placeSelect.disabled = !neighborhood;
+            hideDetails();
 
-            // Filter data based on deepest dropdown selected
-            let filtered = placesData;
-            if (country) filtered = filtered.filter(p => p.country === country);
-            if (city) filtered = filtered.filter(p => p.city === city);
-            if (neighborhood) filtered = filtered.filter(p => p.neighborhood === neighborhood);
+            if (neighborhood) {
+                const places = placesData.filter(item => item.country === country && item.city === city && item.neighborhood === neighborhood);
+                placeSelect.innerHTML += places.map(p => `<option value="${p.placeName}">${p.placeName}</option>`).join('');
+            }
+        });
 
-            // Render Places List
-            if (filtered.length === 0 || (!country && !city && !neighborhood)) {
-                placesListDiv.innerHTML = '<p class="text-gray-500 col-span-2">No places found for this selection.</p>';
+        // 4. Place Change (Final Selection)
+        placeSelect.addEventListener('change', function() {
+            const placeName = this.value;
+            if (!placeName) {
+                hideDetails();
                 return;
             }
 
-            placesListDiv.innerHTML = filtered.map(place => `
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 shadow-sm">
-                    <h3 class="font-bold text-gray-800">${place.placeName}</h3>
-                    <p class="text-xs text-indigo-600 font-semibold mb-1">${place.category}</p>
-                    <p class="text-xs text-gray-500">${place.neighborhood}, ${place.city}</p>
-                </div>
-            `).join('');
-
-            // Add markers to map and adjust bounds
-            const bounds = [];
-            filtered.forEach(place => {
-                const marker = L.marker([place.lat, place.lng]).addTo(map)
-                    .bindPopup(`<b>${place.placeName}</b><br>${place.neighborhood}, ${place.city}`);
-                currentMarkers.push(marker);
-                bounds.push([place.lat, place.lng]);
-            });
-
-            if (bounds.length > 0) {
-                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+            const selected = placesData.find(item => item.placeName === placeName);
+            if (selected) {
+                detName.textContent = selected.placeName;
+                detCategory.textContent = selected.category;
+                detLocation.textContent = `${selected.neighborhood}, ${selected.city}, ${selected.country}`;
+                placeDetails.classList.remove('hidden');
             }
+        });
+
+        function hideDetails() {
+            placeDetails.classList.add('hidden');
         }
 
-        // Initialize on load
+        // Run initialization on page load
         initDropdowns();
     </script>
 </body>
